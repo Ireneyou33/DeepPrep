@@ -188,7 +188,18 @@ if __name__ == '__main__':
     boldref_path = Path(coreg_xfm.parent) / f'{args.bold_id}_space-{args.template_space}_res-{args.template_resolution}_boldref.nii.gz'
 
     # load fieldmap info
-    if args.bold_sdc:
+    fmap_base_dir = Path(args.work_dir) / 'bold_preprocess' / f'{args.subject_id}_wf' / f'{args.task_id}_wf'
+    fieldmap_id_txt_path = fmap_base_dir / 'fieldmap_id.txt'
+    with open(str(fieldmap_id_txt_path)) as f:
+        fieldmap_id_info = json.load(f)
+    fieldmap_id = fieldmap_id_info.get(bold_file)
+
+    if fieldmap_id is not None:
+        bold_sdc = True
+    else:
+        bold_sdc = False
+
+    if bold_sdc:
         update_entities = {'suffix': 'bold', 'extension': '.json'}
         bold_json = get_preproc_file(args.subject_id, args.bids_dir, bold_file, update_entities)
         with open(str(bold_json)) as f:
@@ -196,15 +207,8 @@ if __name__ == '__main__':
         pe_dir = bold_info["PhaseEncodingDirection"]
         ro_time = bold_info["TotalReadoutTime"]
 
-        fmap_base_dir = Path(args.work_dir) / 'bold_preprocess' /f'{args.subject_id}_wf' / f'{args.task_id}_wf'
-        fieldmap_id_txt_path = fmap_base_dir / 'fieldmap_id.txt'
-        with open(str(fieldmap_id_txt_path)) as f:
-            fieldmap_id_info = json.load(f)
-        fieldmap_id = fieldmap_id_info.get(bold_file)
-
         coeff_dir = fmap_base_dir.parent / 'fmap_preproc_wf' / f'wf_{fieldmap_id}' / 'fix_coeff'
         in_coeff = sorted(coeff_dir.glob("*_fieldcoef_fixed.nii.gz"))[0]
-
 
         fmap_ref_file = str(fmap_base_dir.parent / 'fmap_preproc_wf' / f'wf_{fieldmap_id}' / 'brainextraction_wf' / 'clipper_post' / 'clipped.nii.gz')
 
@@ -259,7 +263,7 @@ if __name__ == '__main__':
     ras2vox_A, ras2vox_b = affine_to_3x3(ras2vox_bold)
 
     # apply fieldmap if available
-    if args.bold_sdc:
+    if bold_sdc:
         nvols = bold_orig.shape[3] if bold_orig.ndim > 3 else 1
 
         if pe_dir and ro_time:
@@ -281,7 +285,7 @@ if __name__ == '__main__':
 
     args_apply_hmc = []
     for i in range(matrix.shape[0]):
-        args_apply_hmc.append([int(i), warped_mesh, matrix[i], ras2vox_A, ras2vox_b, bold_orig, fixed, bold_orig_header, transform_save_path, args.bold_sdc, pe_info, vsm])
+        args_apply_hmc.append([int(i), warped_mesh, matrix[i], ras2vox_A, ras2vox_b, bold_orig, fixed, bold_orig_header, transform_save_path, bold_sdc, pe_info, vsm])
     pool = Pool(10)
     pool.starmap(apply_hmc_pool, args_apply_hmc)
     pool.close()
